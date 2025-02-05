@@ -5,24 +5,37 @@
 ARG BINARIES_IMAGE=ghcr.io/mbecker20/komodo-binaries:latest
 ARG X86_64_BINARIES=${BINARIES_IMAGE}-x86_64
 ARG AARCH64_BINARIES=${BINARIES_IMAGE}-aarch64
+ARG X86_64_MUSL_BINARIES=${BINARIES_IMAGE}-x86_64-musl
+ARG AARCH64_MUSL_BINARIES=${BINARIES_IMAGE}-aarch64-musl
 
-# This is required to work with COPY --from
 FROM ${X86_64_BINARIES} AS x86_64
 FROM ${AARCH64_BINARIES} AS aarch64
+FROM ${X86_64_MUSL_BINARIES} AS x86_64-musl
+FROM ${AARCH64_MUSL_BINARIES} AS aarch64-musl
 
-FROM debian:bullseye-slim
+FROM alpine:3.19 AS musl-base
+FROM debian:bullseye-slim AS glibc-base
 
-COPY ./bin/periphery/debian-deps.sh .
-RUN sh ./debian-deps.sh && rm ./debian-deps.sh
+FROM ${VARIANT:-glibc-base}
+
+# Install deps based on base
+RUN if [ -f /etc/alpine-release ]; then \
+      apk add --no-cache ca-certificates tzdata; \
+    else \
+      sh ./debian-deps.sh && rm ./debian-deps.sh; \
+    fi
 
 WORKDIR /app
 
-## Copy both binaries initially, but only keep appropriate one for the TARGETPLATFORM.
-COPY --from=x86_64 /periphery /app/arch/linux/amd64
-COPY --from=aarch64 /periphery /app/arch/linux/arm64
+## Copy all binary variants initially, but only keep appropriate one for the TARGETPLATFORM and VARIANT
+COPY --from=x86_64 /periphery /app/arch/linux/amd64/glibc
+COPY --from=aarch64 /periphery /app/arch/linux/arm64/glibc
+COPY --from=x86_64-musl /periphery /app/arch/linux/amd64/musl
+COPY --from=aarch64-musl /periphery /app/arch/linux/arm64/musl
 
 ARG TARGETPLATFORM
-RUN mv /app/arch/${TARGETPLATFORM} /usr/local/bin/periphery && rm -r /app/arch
+ARG VARIANT=glibc
+RUN mv /app/arch/${TARGETPLATFORM}/${VARIANT} /usr/local/bin/periphery && rm -r /app/arch
 
 EXPOSE 8120
 
