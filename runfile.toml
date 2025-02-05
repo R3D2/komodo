@@ -56,13 +56,31 @@ cmd = "PERIPHERY_CONFIG_PATH=test.periphery.config.toml cargo run -p komodo_peri
 [create-multiarch-builder]
 cmd = "docker buildx create --name builder --use --bootstrap"
 
-[build-multiarch-periphery]
+[build-multiarch-periphery-glibc]
 cmd = """
 docker build \
   --platform linux/amd64,linux/arm64 \
+  --build-arg VARIANT=glibc-base \
   -f bin/periphery/cross-compile.Dockerfile \
+  -t ghcr.io/moghtech/komodo-periphery:latest-glibc \
+  --push \
   .
 """
+
+[build-multiarch-periphery-musl]
+cmd = """
+docker build \
+  --platform linux/amd64,linux/arm64 \
+  --build-arg VARIANT=musl-base \
+  -f bin/periphery/cross-compile.Dockerfile \
+  -t ghcr.io/moghtech/komodo-periphery:latest-musl \
+  --push \
+  .
+"""
+
+[build-multiarch-periphery]
+description = "builds both glibc and musl variants of the periphery"
+after = ["build-multiarch-periphery-glibc", "build-multiarch-periphery-musl"]
 
 [docsite-start]
 path = "docsite"
